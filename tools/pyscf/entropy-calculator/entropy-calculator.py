@@ -1,4 +1,4 @@
-#!/bin/python3
+#!python3
 """
 Calculate the wavefunction for a molecule and then evaluate the entropy
 
@@ -49,23 +49,90 @@ The 1-electron density matrix is a special case as I can always bring it
 into a diagonal form by a simple orbital transformation. The same is not
 possible for any higher order density matrix.
 """
+import argparse
 import math
 from pyscf import gto, scf, mcscf, dmrgscf, fci
+import numpy as np
 
 def calc_fci(mol):
     """
     Do a Full-CI calculation on the molecule provided
     """
     uhf_wf = scf.UHF(mol).run()
-    fci_wf = fci.FCI(uhf_wf).kernel()
-    return fci_wf
+    norb = mol.nao
+    nelec = mol.nelec
+    print(f"Full-CI:")
+    print(f"number of electrons: {nelec}")
+    print(f"number of orbitals : {norb}")
+    fci_wf = fci.FCI(uhf_wf)
+    (E_fci,C_fci) = fci_wf.kernel()
+    print(f"converged FCI energy = {E_fci}")
+    return (fci_wf,norb,nelec)
 
-def calc_rdms(fci_wf):
-    (rdm1_a,rdm1_b) = fci.FCI.make_rdm12_spin1()
+def calc_rdms(fci_wf,norb,nelec,norder):
+    fcivec = fci_wf.kernel()[1]
+    rdm1_a = None
+    rdm1_b = None
+    rdm2_aa = None
+    rdm2_ab = None
+    rdm2_bb = None
+    rdm3_aaa = None
+    rdm3_aab = None
+    rdm3_abb = None
+    rdm3_bbb = None
+    rdm4_aaaa = None
+    rdm4_aaab = None
+    rdm4_aabb = None
+    rdm4_abbb = None
+    rdm4_bbbb = None
+    print("calculating density matrices")
+    if norder > 4:
+        print("Higher than 4th order density matrices are not implemented!")
+    if norder >= 4:
+        ((rdm1_a,rdm1_b),(rdm2_aa,rdm2_ab,rdm2_bb),
+         (rdm3_aaa,rdm3_aab,rdm3_abb,rdm3_bbb),
+         (rdm4_aaaa,rdm4_aaab,rdm4_aabb,rdm4_abbb,rdm4_bbbb)) = fci_wf.make_rdm1234s(fcivec,norb,nelec)
+    elif norder == 3:
+        ((rdm1_a,rdm1_b),(rdm2_aa,rdm2_ab,rdm2_bb),
+         (rdm3_aaa,rdm3_aab,rdm3_abb,rdm3_bbb)) = fci_wf.make_rdm123s(fcivec,norb,nelec)
+    elif norder == 2:
+        ((rdm1_a,rdm1_b),(rdm2_aa,rdm2_ab,rdm2_bb)) = fci_wf.make_rdm12s(fcivec,norb,nelec)
+    else:
+        (rdm1_a,rdm1_b) = fci_wf.make_rdm1s(fcivec,norb,nelec)
+    print("transposing density matrices")
+    # (a,a,b,b) --> (a,b,a,b)
+    if rdm2_ab is not None:
+        rdm2_ab = rdm2_ab.transpose(0,2,1,3)
+    # (a,a,a,a,b,b) --> (a,a,b,a,a,b)
+    if rdm3_aab is not None:
+        rdm3_aab = rdm3_aab.transpose(0,1,4,2,3,5)
+    # (a,a,b,b,b,b) --> (a,b,b,a,b,b)
+    if rdm3_abb is not None:
+        rdm3_abb = rdm3_abb.transpose(0,2,3,1,4,5)
+    # (a,a,a,a,a,a,b,b) --> (a,a,a,b,a,a,a,b)
+    if rdm4_aaab is not None:
+        rdm4_aaab = rdm4_aaab.transpose(0,1,2,6,3,4,5,7)
+    # (a,a,a,a,b,b,b,b) --> (a,a,b,b,a,a,b,b)
+    if rdm4_aabb is not None:
+        rdm4_aabb = rdm4_aabb.transpose(0,1,4,5,2,3,6,7)
+    # (a,a,b,b,b,b,b,b) --> (a,b,b,b,a,b,b,b)
+    if rdm4_abbb is not None:
+        rdm4_abbb = rdm4_abbb.transpose(0,2,3,4,1,5,6,7)
+    print("return density matrices")
+    return (rdm1_a,rdm1_b,rdm2_aa,rdm2_ab,rdm2_bb,
+            rdm3_aaa,rdm3_aab,rdm3_abb,rdm3_bbb,
+            rdm4_aaaa,rdm4_aaab,rdm4_aabb,rdm4_abbb,rdm4_bbbb)
 
-def calc_entropy():
+def calc_entropy(rdm):
+    (occ, orbs) = np.linalg.eig(rdm)
+    ent = 0
+    print(occ)
+    for r in occ:
+       if r > 1.0e-10:
+           ent -= r*math.log2(r)
+    return ent
 
-def do_all(mol_file,basis_set,spin):
+def do_all(mol_file,basis_set,spin,order):
     """
     Do the whole calculation
 
@@ -77,6 +144,82 @@ def do_all(mol_file,basis_set,spin):
     """
     mol = gto.Mole(basis=basis_set,atom=mol_file,spin=spin)
     mol.build()
+    (fci,norb,nelec) = calc_fci(mol)
+    (rdm1_a,rdm1_b,rdm2_aa,rdm2_ab,rdm2_bb,
+     rdm3_aaa,rdm3_aab,rdm3_abb,rdm3_bbb,
+     rdm4_aaaa,rdm4_aaab,rdm4_aabb,rdm4_abbb,rdm4_bbbb) = calc_rdms(fci,norb,nelec,order)
+    if order >= 1:
+        e1_a = calc_entropy(rdm1_a)
+        e1_b = calc_entropy(rdm1_b)
+        print(f"alpha 1-electron entropy: {e1_a}")
+        print(f"beta  1-electron entropy: {e1_b}")
+        print(f"total 1-electron entropy: {e1_a+e1_b}")
+        print()
+    if order >= 2:
+        nrdm2_aa = np.reshape(rdm2_aa,shape=(norb*norb,norb*norb))
+        nrdm2_ab = np.reshape(rdm2_ab,shape=(norb*norb,norb*norb))
+        nrdm2_bb = np.reshape(rdm2_bb,shape=(norb*norb,norb*norb))
+        e2_aa = calc_entropy(nrdm2_aa)
+        e2_ab = calc_entropy(nrdm2_ab)
+        e2_bb = calc_entropy(nrdm2_bb)
+        print(f"alpha-alpha 2-electron entropy: {e2_aa}")
+        print(f"alpha-beta  2-electron entropy: {e2_ab}")
+        print(f"beta -beta  2-electron entropy: {e2_bb}")
+        print(f"total       2-electron entropy: {e2_aa+e2_ab+e2_bb}")
+        print()
+    if order >= 3:
+        nrdm3_aaa = np.reshape(rdm3_aaa,shape=(norb*norb*norb,norb*norb*norb))
+        nrdm3_aab = np.reshape(rdm3_aab,shape=(norb*norb*norb,norb*norb*norb))
+        nrdm3_abb = np.reshape(rdm3_abb,shape=(norb*norb*norb,norb*norb*norb))
+        nrdm3_bbb = np.reshape(rdm3_bbb,shape=(norb*norb*norb,norb*norb*norb))
+        e3_aaa = calc_entropy(nrdm3_aaa)
+        e3_aab = calc_entropy(nrdm3_aab)
+        e3_abb = calc_entropy(nrdm3_abb)
+        e3_bbb = calc_entropy(nrdm3_bbb)
+        print(f"alpha-alpha-alpha 3-electron entropy: {e3_aaa}")
+        print(f"alpha-alpha-beta  3-electron entropy: {e3_aab}")
+        print(f"alpha-beta -beta  3-electron entropy: {e3_abb}")
+        print(f"beta -beta -beta  3-electron entropy: {e3_bbb}")
+        print(f"total             3-electron entropy: {e3_aaa+e3_aab+e3_abb+e3_bbb}")
+        print()
+    if order >= 4:
+        nrdm4_aaaa = np.reshape(rdm4_aaaa,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        nrdm4_aaab = np.reshape(rdm4_aaab,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        nrdm4_aabb = np.reshape(rdm4_aabb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        nrdm4_abbb = np.reshape(rdm4_abbb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        nrdm4_bbbb = np.reshape(rdm4_bbbb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        e4_aaaa = calc_entropy(nrdm4_aaaa)
+        e4_aaab = calc_entropy(nrdm4_aaab)
+        e4_aabb = calc_entropy(nrdm4_aabb)
+        e4_abbb = calc_entropy(nrdm4_abbb)
+        e4_bbbb = calc_entropy(nrdm4_bbbb)
+        print(f"alpha-alpha-alpha-alpha 4-electron entropy: {e4_aaaa}")
+        print(f"alpha-alpha-alpha-beta  4-electron entropy: {e4_aaab}")
+        print(f"alpha-alpha-beta -beta  4-electron entropy: {e4_aabb}")
+        print(f"alpha-beta -beta -beta  4-electron entropy: {e4_abbb}")
+        print(f"beta -beta -beta -beta  4-electron entropy: {e4_bbbb}")
+        print(f"total                   4-electron entropy: {e4_aaaa+e4_aaab+e4_aabb+e4_abbb+e4_bbbb}")
+        print()
+
+def commandline_args():
+    parser = argparse.ArgumentParser(
+             prog="CalculatEntropy",
+             description="Calculates the Full-CI entropies for a molecule",
+             epilog="DON'T PANIC")
+    parser.add_argument("XYZ_file")
+    parser.add_argument("basis_set")
+    parser.add_argument("-m","--mult",help="spin multiplicity",type=int,default=1)
+    parser.add_argument("-o","--order",help="order of RDMs",type=int,default=1)
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    # flop
+    args = commandline_args()
+    xyz_file = args.XYZ_file
+    basis_set = args.basis_set
+    mult = args.mult
+    nopen = mult-1
+    order = args.order
+    if nopen < 0:
+        print(f"Number of unpaired electron is: {nopen}?")
+        exit()
+    do_all(xyz_file,basis_set,nopen,order)
