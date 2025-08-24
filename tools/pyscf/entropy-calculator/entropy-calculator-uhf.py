@@ -58,7 +58,8 @@ def calc_fci(mol):
     """
     Do a Full-CI calculation on the molecule provided
     """
-    uhf_wf = scf.UHF(mol).run()
+    #uhf_wf = scf.UHF(mol).run()
+    uhf_wf = scf.RHF(mol).run()
     norb = mol.nao
     nelec = mol.nelec
     print(f"Full-CI:")
@@ -70,7 +71,11 @@ def calc_fci(mol):
     return (fci_wf,norb,nelec)
 
 def calc_rdms(fci_wf,norb,nelec,norder):
-    fcivec = fci_wf.kernel()[1]
+    (fcie,fcivec) = fci_wf.kernel()
+    #DEBUG
+    #print(fcie)
+    #print(fcivec)
+    #DEBUG
     rdm1_a = None
     rdm1_b = None
     rdm2_aa = None
@@ -85,7 +90,7 @@ def calc_rdms(fci_wf,norb,nelec,norder):
     rdm4_aabb = None
     rdm4_abbb = None
     rdm4_bbbb = None
-    print("calculating density matrices")
+    print("\ncalculating density matrices")
     if norder > 4:
         print("Higher than 4th order density matrices are not implemented!")
     if norder >= 4:
@@ -100,15 +105,27 @@ def calc_rdms(fci_wf,norb,nelec,norder):
     else:
         (rdm1_a,rdm1_b) = fci_wf.make_rdm1s(fcivec,norb,nelec)
     print("transposing density matrices")
+    #
+    if rdm2_aa is not None:
+        rdm2_aa = rdm2_aa.transpose(0,2,1,3)
     # (a,a,b,b) --> (a,b,a,b)
     if rdm2_ab is not None:
         rdm2_ab = rdm2_ab.transpose(0,2,1,3)
+    if rdm2_bb is not None:
+        rdm2_bb = rdm2_bb.transpose(0,2,1,3)
+    #
+    if rdm3_aaa is not None:
+        rdm3_aaa = rdm3_aaa.transpose(0,2,4,1,3,5)
     # (a,a,a,a,b,b) --> (a,a,b,a,a,b)
     if rdm3_aab is not None:
         rdm3_aab = rdm3_aab.transpose(0,2,4,1,3,5)
     # (a,a,b,b,b,b) --> (a,b,b,a,b,b)
     if rdm3_abb is not None:
         rdm3_abb = rdm3_abb.transpose(0,2,4,1,3,5)
+    if rdm3_bbb is not None:
+        rdm3_bbb = rdm3_bbb.transpose(0,2,4,1,3,5)
+    if rdm4_aaaa is not None:
+        rdm4_aaaa = rdm4_aaaa.transpose(0,2,4,6,1,3,5,7)
     # (a,a,a,a,a,a,b,b) --> (a,a,a,b,a,a,a,b)
     if rdm4_aaab is not None:
         rdm4_aaab = rdm4_aaab.transpose(0,2,4,6,1,3,5,7)
@@ -118,17 +135,23 @@ def calc_rdms(fci_wf,norb,nelec,norder):
     # (a,a,b,b,b,b,b,b) --> (a,b,b,b,a,b,b,b)
     if rdm4_abbb is not None:
         rdm4_abbb = rdm4_abbb.transpose(0,2,4,6,1,3,5,7)
-    print("return density matrices")
+    if rdm4_bbbb is not None:
+        rdm4_bbbb = rdm4_bbbb.transpose(0,2,4,6,1,3,5,7)
+    print("return density matrices\n")
     return (rdm1_a,rdm1_b,rdm2_aa,rdm2_ab,rdm2_bb,
             rdm3_aaa,rdm3_aab,rdm3_abb,rdm3_bbb,
             rdm4_aaaa,rdm4_aaab,rdm4_aabb,rdm4_abbb,rdm4_bbbb)
 
 def calc_entropy(name,rdm):
+    #DEBUG
+    #diag = np.diag(rdm)
+    #DEBUG
     (occ, orbs) = np.linalg.eigh(rdm)
     ent = 0
     #DEBUG
-    print(f"{name}:")
-    print(occ)
+    #print(f"{name}:")
+    #print(diag)
+    #print(occ)
     #DEBUG
     for r in occ:
        if r > 1.0e-10:
@@ -159,9 +182,9 @@ def do_all(mol_file,basis_set,spin,order):
         print(f"total 1-electron entropy: {e1_a+e1_b}")
         print()
     if order >= 2:
-        nrdm2_aa = np.reshape(rdm2_aa,shape=(norb*norb,norb*norb))
+        nrdm2_aa = (1.0/2.0)*np.reshape(rdm2_aa,shape=(norb*norb,norb*norb))
         nrdm2_ab = np.reshape(rdm2_ab,shape=(norb*norb,norb*norb))
-        nrdm2_bb = np.reshape(rdm2_bb,shape=(norb*norb,norb*norb))
+        nrdm2_bb = (1.0/2.0)*np.reshape(rdm2_bb,shape=(norb*norb,norb*norb))
         e2_aa = calc_entropy("e2_aa",nrdm2_aa)
         e2_ab = calc_entropy("e2_ab",nrdm2_ab)
         e2_bb = calc_entropy("e2_bb",nrdm2_bb)
