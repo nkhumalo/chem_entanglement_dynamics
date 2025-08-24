@@ -105,28 +105,31 @@ def calc_rdms(fci_wf,norb,nelec,norder):
         rdm2_ab = rdm2_ab.transpose(0,2,1,3)
     # (a,a,a,a,b,b) --> (a,a,b,a,a,b)
     if rdm3_aab is not None:
-        rdm3_aab = rdm3_aab.transpose(0,1,4,2,3,5)
+        rdm3_aab = rdm3_aab.transpose(0,2,4,1,3,5)
     # (a,a,b,b,b,b) --> (a,b,b,a,b,b)
     if rdm3_abb is not None:
-        rdm3_abb = rdm3_abb.transpose(0,2,3,1,4,5)
+        rdm3_abb = rdm3_abb.transpose(0,2,4,1,3,5)
     # (a,a,a,a,a,a,b,b) --> (a,a,a,b,a,a,a,b)
     if rdm4_aaab is not None:
-        rdm4_aaab = rdm4_aaab.transpose(0,1,2,6,3,4,5,7)
+        rdm4_aaab = rdm4_aaab.transpose(0,2,4,6,1,3,5,7)
     # (a,a,a,a,b,b,b,b) --> (a,a,b,b,a,a,b,b)
     if rdm4_aabb is not None:
-        rdm4_aabb = rdm4_aabb.transpose(0,1,4,5,2,3,6,7)
+        rdm4_aabb = rdm4_aabb.transpose(0,2,4,6,1,3,5,7)
     # (a,a,b,b,b,b,b,b) --> (a,b,b,b,a,b,b,b)
     if rdm4_abbb is not None:
-        rdm4_abbb = rdm4_abbb.transpose(0,2,3,4,1,5,6,7)
+        rdm4_abbb = rdm4_abbb.transpose(0,2,4,6,1,3,5,7)
     print("return density matrices")
     return (rdm1_a,rdm1_b,rdm2_aa,rdm2_ab,rdm2_bb,
             rdm3_aaa,rdm3_aab,rdm3_abb,rdm3_bbb,
             rdm4_aaaa,rdm4_aaab,rdm4_aabb,rdm4_abbb,rdm4_bbbb)
 
-def calc_entropy(rdm):
-    (occ, orbs) = np.linalg.eig(rdm)
+def calc_entropy(name,rdm):
+    (occ, orbs) = np.linalg.eigh(rdm)
     ent = 0
+    #DEBUG
+    print(f"{name}:")
     print(occ)
+    #DEBUG
     for r in occ:
        if r > 1.0e-10:
            ent -= r*math.log2(r)
@@ -149,8 +152,8 @@ def do_all(mol_file,basis_set,spin,order):
      rdm3_aaa,rdm3_aab,rdm3_abb,rdm3_bbb,
      rdm4_aaaa,rdm4_aaab,rdm4_aabb,rdm4_abbb,rdm4_bbbb) = calc_rdms(fci,norb,nelec,order)
     if order >= 1:
-        e1_a = calc_entropy(rdm1_a)
-        e1_b = calc_entropy(rdm1_b)
+        e1_a = calc_entropy("e1_a",rdm1_a)
+        e1_b = calc_entropy("e1_b",rdm1_b)
         print(f"alpha 1-electron entropy: {e1_a}")
         print(f"beta  1-electron entropy: {e1_b}")
         print(f"total 1-electron entropy: {e1_a+e1_b}")
@@ -159,23 +162,29 @@ def do_all(mol_file,basis_set,spin,order):
         nrdm2_aa = np.reshape(rdm2_aa,shape=(norb*norb,norb*norb))
         nrdm2_ab = np.reshape(rdm2_ab,shape=(norb*norb,norb*norb))
         nrdm2_bb = np.reshape(rdm2_bb,shape=(norb*norb,norb*norb))
-        e2_aa = calc_entropy(nrdm2_aa)
-        e2_ab = calc_entropy(nrdm2_ab)
-        e2_bb = calc_entropy(nrdm2_bb)
+        e2_aa = calc_entropy("e2_aa",nrdm2_aa)
+        e2_ab = calc_entropy("e2_ab",nrdm2_ab)
+        e2_bb = calc_entropy("e2_bb",nrdm2_bb)
         print(f"alpha-alpha 2-electron entropy: {e2_aa}")
         print(f"alpha-beta  2-electron entropy: {e2_ab}")
         print(f"beta -beta  2-electron entropy: {e2_bb}")
         print(f"total       2-electron entropy: {e2_aa+e2_ab+e2_bb}")
         print()
     if order >= 3:
-        nrdm3_aaa = np.reshape(rdm3_aaa,shape=(norb*norb*norb,norb*norb*norb))
-        nrdm3_aab = np.reshape(rdm3_aab,shape=(norb*norb*norb,norb*norb*norb))
-        nrdm3_abb = np.reshape(rdm3_abb,shape=(norb*norb*norb,norb*norb*norb))
-        nrdm3_bbb = np.reshape(rdm3_bbb,shape=(norb*norb*norb,norb*norb*norb))
-        e3_aaa = calc_entropy(nrdm3_aaa)
-        e3_aab = calc_entropy(nrdm3_aab)
-        e3_abb = calc_entropy(nrdm3_abb)
-        e3_bbb = calc_entropy(nrdm3_bbb)
+        # 3rd order density are normalized to the total # triples and not
+        # the # unique triples
+        # there are 6 permutations of 3 numbers
+        nrdm3_aaa = (1.0/6.0)*np.reshape(rdm3_aaa,shape=(norb*norb*norb,norb*norb*norb))
+        # there are 2 permutations of 2 numbers
+        nrdm3_aab = (1.0/2.0)*np.reshape(rdm3_aab,shape=(norb*norb*norb,norb*norb*norb))
+        # there are 2 permutations of 2 numbers
+        nrdm3_abb = (1.0/2.0)*np.reshape(rdm3_abb,shape=(norb*norb*norb,norb*norb*norb))
+        # there are 6 permutations of 3 numbers
+        nrdm3_bbb = (1.0/6.0)*np.reshape(rdm3_bbb,shape=(norb*norb*norb,norb*norb*norb))
+        e3_aaa = calc_entropy("e3_aaa",nrdm3_aaa)
+        e3_aab = calc_entropy("e3_aab",nrdm3_aab)
+        e3_abb = calc_entropy("e3_abb",nrdm3_abb)
+        e3_bbb = calc_entropy("e3_bbb",nrdm3_bbb)
         print(f"alpha-alpha-alpha 3-electron entropy: {e3_aaa}")
         print(f"alpha-alpha-beta  3-electron entropy: {e3_aab}")
         print(f"alpha-beta -beta  3-electron entropy: {e3_abb}")
@@ -183,16 +192,23 @@ def do_all(mol_file,basis_set,spin,order):
         print(f"total             3-electron entropy: {e3_aaa+e3_aab+e3_abb+e3_bbb}")
         print()
     if order >= 4:
-        nrdm4_aaaa = np.reshape(rdm4_aaaa,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
-        nrdm4_aaab = np.reshape(rdm4_aaab,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
-        nrdm4_aabb = np.reshape(rdm4_aabb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
-        nrdm4_abbb = np.reshape(rdm4_abbb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
-        nrdm4_bbbb = np.reshape(rdm4_bbbb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
-        e4_aaaa = calc_entropy(nrdm4_aaaa)
-        e4_aaab = calc_entropy(nrdm4_aaab)
-        e4_aabb = calc_entropy(nrdm4_aabb)
-        e4_abbb = calc_entropy(nrdm4_abbb)
-        e4_bbbb = calc_entropy(nrdm4_bbbb)
+        # 4th order density are normalized to the total # quadruplets and not
+        # the # unique quadruplets
+        # there are 24 permutations of 4 numbers
+        nrdm4_aaaa = (1.0/24.0)*np.reshape(rdm4_aaaa,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        # there are 6 permutations of 3 numbers
+        nrdm4_aaab = (1.0/6.0)*np.reshape(rdm4_aaab,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        # there are 2 permutations of 2 numbers for both aa and bb
+        nrdm4_aabb = (1.0/2.0)*(1.0/2.0)*np.reshape(rdm4_aabb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        # there are 6 permutations of 3 numbers
+        nrdm4_abbb = (1.0/6.0)*np.reshape(rdm4_abbb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        # there are 24 permutations of 4 numbers
+        nrdm4_bbbb = (1.0/24.0)*np.reshape(rdm4_bbbb,shape=(norb*norb*norb*norb,norb*norb*norb*norb))
+        e4_aaaa = calc_entropy("e4_aaaa",nrdm4_aaaa)
+        e4_aaab = calc_entropy("e4_aaab",nrdm4_aaab)
+        e4_aabb = calc_entropy("e4_aabb",nrdm4_aabb)
+        e4_abbb = calc_entropy("e4_abbb",nrdm4_abbb)
+        e4_bbbb = calc_entropy("e4_bbbb",nrdm4_bbbb)
         print(f"alpha-alpha-alpha-alpha 4-electron entropy: {e4_aaaa}")
         print(f"alpha-alpha-alpha-beta  4-electron entropy: {e4_aaab}")
         print(f"alpha-alpha-beta -beta  4-electron entropy: {e4_aabb}")
