@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Range of occupation probabilities
+# The expected occupation number value for fermionic systems is 0 or 1
+# The range of probabilities is therefore, between 0 and 1. 
 gamma = np.linspace(0.001, 0.999, 1000)
 
 # Von Neumann entropy
