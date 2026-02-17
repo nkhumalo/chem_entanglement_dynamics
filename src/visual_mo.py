@@ -188,7 +188,7 @@ tools.cubegen.orbital(
     mol, "livvo_lumo.cube", orbitals["livvo"][:, 0], margin=5
 )
 
-fortecubeview.plot(path=".", sumlevel=0.85)
+#fortecubeview.plot(path=".", sumlevel=0.85)
 
 data = None
 with open("ibo_homo.cube", "r") as infile:
@@ -220,4 +220,8 @@ view.addVolumetricData(
 view.addModel(data, "cube")
 view.setStyle({"stick": {}})
 view.zoomTo()
-view.show()
+#view.show()
+
+# save to file
+with open("mo_view.html", "w") as f:
+    f.write(view._make_html())
