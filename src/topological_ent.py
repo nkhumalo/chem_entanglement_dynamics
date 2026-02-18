@@ -173,20 +173,21 @@ def main():
         
         # 3. Entropy (1-RDM)
         rdm1_a, rdm1_b = calc_1rdm(fci_wf, C_fci, norb, nelec)
-        print(rmd1_a)
+        #print(rdm1_a)
         ent_a = von_neumann_entropy(rdm1_a)
         ent_b = von_neumann_entropy(rdm1_b)
         tot_ent = ent_a + ent_b
+        print(f"This is the alpha {ent_a} and the beta {ent_b}")
 
         # eigvalsh returns [low_occ, high_occ] -> [antibonding, bonding]
         s_per_orb = get_orbital_entropies(rdm1_a)
 
-        s_total = np.sum(s_per_orb) * 2 # Total = Alpha_part + Beta_part
+        s_total = np.sum(s_per_orb)  # Total = Alpha_part + Beta_part
 
         # Store Data 
         bond_lengths.append(dist)
         energies.append(E_fci)
-        total_entropies.append(tot_ent)
+        total_entropies.append(s_per_orb)
 
         # Store individual alpha orbital entropies
         orb1_entropies.append(s_per_orb[0]) # Usually Antibonding
