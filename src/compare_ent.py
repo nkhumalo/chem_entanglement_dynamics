@@ -116,34 +116,30 @@ def main():
         s_swap = get_alpha_entropy(rho_swapped)
         swap_entropies.append(s_swap)
 
-    # --- Plotting with Dual Axes ---
-    fig, ax1 = plt.subplots(figsize=(9, 6))
+   # --- Plotting Side-by-Side ---
+    # Create 1 row, 2 columns of subplots. sharey=True keeps the entropy scale identical.
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    # Plot 1: Natural (Blue) on Bottom Axis
-    line1, = ax1.plot(distances, nat_entropies, 'o-', color='blue', label='Natural Dissociation (Bond Stretching)')
-    ax1.set_xlabel('Bond Length ($\AA$)', color='blue', fontsize=12)
-    ax1.tick_params(axis='x', labelcolor='blue')
+    # Plot 1: Natural (Blue) on the Left
+    ax1.plot(distances, nat_entropies, 'o-', color='blue', label='Natural Dissociation')
+    ax1.set_xlabel('Bond Length ($\AA$)', fontsize=12)
     ax1.set_ylabel('Von Neumann Entropy (Bits)', fontsize=12)
+    ax1.set_title('Natural Entanglement\n(Bond Stretching)', fontsize=13)
     ax1.grid(True, linestyle='--', alpha=0.5)
+    #ax1.legend(loc='lower right')
 
-    # Create Top Axis for SWAP
-    ax2 = ax1.twiny()
-    
-    # Plot 2: SWAP (Red) on Top Axis
-    # Convert theta to degrees or percentage for readability
+    # Plot 2: SWAP (Red) on the Right
+    # Convert theta to degrees for readability
     swap_axis_labels = np.degrees(thetas) # 0 to 90 degrees
-    line2, = ax2.plot(swap_axis_labels, swap_entropies, 's--', color='red', label='Artificial SWAP ')
+    ax2.plot(swap_axis_labels, swap_entropies, 's--', color='red', label='Artificial SWAP')
+    ax2.set_xlabel(r'SWAP Interaction Angle $\theta$ (Degrees)', fontsize=12)
+    ax2.set_title('Artificial Entanglement\n(Fixed Geometry: 0.74 $\AA$)', fontsize=13)
+    ax2.grid(True, linestyle='--', alpha=0.5)
+    #ax2.legend(loc='lower right')
+
+    # Overall Figure Title
+    plt.suptitle("Comparison: Natural vs. Artificial Entanglement Generation", fontsize=15, y=1.05)
     
-    ax2.set_xlabel(r'SWAP Interaction Angle $\theta$ (Degrees)', color='red', fontsize=12)
-    ax2.tick_params(axis='x', labelcolor='red')
-
-    # Combine legends
-    lines = [line1, line2]
-    labels = [l.get_label() for l in lines]
-    # Place legend in "center right" to avoid curve overlap
-    ax1.legend(lines, labels, loc='center right')
-
-    plt.title("Comparison: Natural vs. Artificial Entanglement Generation", pad=20)
     plt.tight_layout()
     plt.show()
 

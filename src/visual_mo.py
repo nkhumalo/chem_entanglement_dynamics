@@ -51,7 +51,8 @@ def get_xyz(molecule, optimize=False):
     xyz = "\n".join(xyz)
     return mol, xyz
 
-molecule3d, xyz = get_xyz(molecule)
+#molecule3d, xyz = get_xyz(molecule)
+molecule3d, xyz = "src/h2-5.xyz"
 
 view = py3Dmol.view(
     data=Chem.MolToMolBlock(molecule3d),
